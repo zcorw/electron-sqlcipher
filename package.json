@@ -1,0 +1,47 @@
+{
+  "name": "electron-test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "webpack --progress",
+    "dist": "electron-builder --win --x64",
+    "rebuild": "electron-rebuild -f -w @journeyapps/sqlcipher"
+  },
+  "build": {
+    "appId": "com.electron.app",
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    }
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@journeyapps/sqlcipher": "^3.2.1",
+    "react": "^16.8.5",
+    "react-dom": "^16.8.5"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.4.0",
+    "@babel/preset-env": "^7.4.2",
+    "@babel/preset-es2017": "^7.0.0-beta.53",
+    "@babel/preset-react": "^7.0.0",
+    "babel": "^6.23.0",
+    "babel-loader": "^8.0.5",
+    "electron": "^4.1.1",
+    "electron-builder": "^20.39.0",
+    "electron-rebuild": "^1.8.4",
+    "webpack": "^4.29.6",
+    "webpack-cli": "^3.3.0"
+  }
+}
