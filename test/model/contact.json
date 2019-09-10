@@ -1,0 +1,45 @@
+[
+  {
+    "userId": "1",
+    "remarkName": "a_1",
+    "contactName": "王一",
+    "sourceType": 1,
+    "desc": "",
+    "isHidden": 0,
+    "isUndisturb": 0,
+    "isDel": 0,
+    "status": 1
+  },
+  {
+    "userId": "2",
+    "remarkName": "b_2",
+    "contactName": "李二",
+    "sourceType": 1,
+    "desc": "帅哥一枚",
+    "isHidden": 0,
+    "isUndisturb": 0,
+    "isDel": 0,
+    "status": 1
+  },
+  {
+    "userId": "3",
+    "contactName": "张三",
+    "remarkName": "张三",
+    "sourceType": 2,
+    "isHidden": 1,
+    "isUndisturb": 0,
+    "isDel": 0,
+    "status": 1
+  },
+  {
+    "userId": "4",
+    "remarkName": "d_4",
+    "contactName": "赵四",
+    "sourceType": 1,
+    "desc": "哈哈",
+    "isHidden": 0,
+    "isUndisturb": 0,
+    "isDel": 0,
+    "status": 1
+  }
+]
