@@ -194,15 +194,15 @@ export const groupMember = {
   id: {
     type: Sequelize.STRING,
     primaryKey: true,
-    set() {
-      const uid = () => this.getDataValue('userId');
-      const gid = () => this.getDataValue('groupId');
-      this.setDataValue('id', `${gid}_${uid}`);
-    },
   },
   groupId: Sequelize.STRING,
   userId: {
     type: Sequelize.STRING,
+    set(val) {
+      const gid = this.getDataValue('groupId');
+      this.setDataValue('id', `${gid}_${val}`);
+      this.setDataValue('userId', val);
+    },
   },
   nickName: Sequelize.STRING,
   joinType: Sequelize.INTEGER,
