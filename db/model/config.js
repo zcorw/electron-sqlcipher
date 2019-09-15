@@ -5,7 +5,7 @@
 import Sequelize from 'sequelize';
 import pinyin4js from 'pinyin4js';
 
-export function getPinyin(str) {
+function getPinyin(str) {
   if (!str) {
     return '';
   }
@@ -175,10 +175,6 @@ export const groupSet = {
   groupId: {
     primaryKey: true,
     type: Sequelize.STRING,
-    references: {
-      model: 'groupBase',
-      key: 'groupId',
-    },
   },
   isUndisturb: Sequelize.INTEGER,
   isHidden: Sequelize.INTEGER,
@@ -187,6 +183,7 @@ export const groupSet = {
 /**
  * 群组成员信息表
  * groupMember.belongsToMany(userBase)
+ * @field {string} id 唯一标识 ${groupId}_${userId}
  * @field {string} groupId 群组ID
  * @field {string} userId 用户ID
  * @field {string} nickName 群内昵称
@@ -194,13 +191,18 @@ export const groupSet = {
  * @field {string} version 版本
  */
 export const groupMember = {
+  id: {
+    type: Sequelize.STRING,
+    primaryKey: true,
+    set() {
+      const uid = () => this.getDataValue('userId');
+      const gid = () => this.getDataValue('groupId');
+      this.setDataValue('id', `${gid}_${uid}`);
+    },
+  },
   groupId: Sequelize.STRING,
   userId: {
     type: Sequelize.STRING,
-    references: {
-      model: 'userBases',
-      key: 'userId',
-    },
   },
   nickName: Sequelize.STRING,
   joinType: Sequelize.INTEGER,

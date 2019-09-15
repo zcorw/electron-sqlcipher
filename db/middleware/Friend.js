@@ -4,17 +4,41 @@
  * 有数据需要写入，优先转换格式后传递给前端，将 sql 语句以 function 传给队列
  * @author william
  */
-import { getContact as getUserModel } from '../model/model';
-import { factery as cacheFactery, control as controlFactery } from './cache';
-import Friend from '../cache/Friend';
+import _ from 'lodash';
+import { getModel } from '../model/model';
+import { transaction } from '../model/database';
+import { add as addQueue } from './writeQueue';
 
-const cacheMax = 500; // 缓存上限
-const userCache = cacheFactery(cacheMax);
-const createModel = async () => {
-  const { Contact: Info, UserBase: Base } = await getUserModel();
-  return { Info, Base };
-};
-const { get: getUser, create: createUser, update: updateUser } = controlFactery(createModel, userCache, Friend);
+function toJSON(data) {
+  return {
+    remarkName: data.remarkName,
+    contactName: data.contactName,
+    sourceType: data.sourceType,
+    desc: data.desc,
+    isHidden: data.isHidden,
+    isUndisturb: data.isUndisturb,
+    isDel: data.isDel,
+    status: data.status,
+    userId: data.userBase.userId,
+    mid: data.userBase.mid,
+    headImgUrl: data.userBase.headImgUrl,
+    nickName: data.userBase.nickName,
+    publicKey: data.userBase.publicKey,
+    countryCode: data.userBase.countryCode,
+    mobile: data.userBase.mobile,
+    email: data.userBase.email,
+    registerType: data.userBase.registerType,
+    version: data.userBase.version,
+    gender: data.userBase.gender,
+    job: data.userBase.job,
+    birthday: data.userBase.birthday,
+    signature: data.userBase.signature,
+    name: data.userBase.name,
+    pinyin: data.userBase.pinyin,
+    groupIndex: (data.pinyin || data.userBase.pinyin || data.userBase.mid)[0],
+    displayName: data.remarkName || data.userBase.nickName || data.userBase.mid,
+  };
+}
 
 /**
  * 好友API
@@ -32,71 +56,95 @@ const { get: getUser, create: createUser, update: updateUser } = controlFactery(
  */
 const self = {
   async getAllFriend() {
-    const { Contact } = await getUserModel();
-    const contactInstances = (await Contact.findAll()) || [];
-    const userBaseInstances = await Promise.all(contactInstances.map((instance) => instance.getUserBase()));
-    const users = contactInstances.map((instance, i) => new Friend(instance.userId, userBaseInstances[i], instance));
-    return users.map((user) => {
-      setTimeout(() => userCache.add(user.userId, user));
-      return user.toJSON();
-    });
+    const Contact = await getModel('contact');
+    const UserBase = await getModel('userBase');
+    const contactInstances =
+      (await Contact.findAll({
+        include: [
+          {
+            model: UserBase,
+          },
+        ],
+      })) || [];
+    return contactInstances.map((instance) => toJSON(instance.toJSON()));
   },
   async getUserById(userId) {
-    const user = await getUser(userId);
-    return user && user.toJSON();
+    const Contact = await getModel('contact');
+    const UserBase = await getModel('userBase');
+    const instance = await Contact.findByPk(userId, {
+      include: [
+        {
+          model: UserBase,
+        },
+      ],
+    });
+    return instance && toJSON(instance.toJSON());
   },
   async saveOrUpdate(users) {
-    await Promise.all(
-      users.map(async (user) => {
-        const { userBase, contact } = user;
-        let cache = await getUser(userBase.userId);
-        const contactOption = {
-          userId: userBase.userId,
-          remarkName: contact.remarkName,
-          contactName: contact.contactName,
-          sourceType: contact.sourceType,
-          desc: contact.desc,
-          isHidden: contact.isHidden,
-          isUndisturb: contact.isUndisturb,
-          isDel: contact.isDel,
-          status: contact.status,
-        };
-        const userBaseOption = {
-          userId: userBase.userId,
-          mid: userBase.mid,
-          headImgUrl: userBase.headImgUrl,
-          nickName: userBase.nickName,
-          publicKey: userBase.publicKey,
-          countryCode: userBase.countryCode,
-          mobile: userBase.mobile,
-          email: userBase.email,
-          registerType: userBase.registerType,
-          version: userBase.version,
-          gender: userBase.gender,
-          job: userBase.job,
-          birthday: userBase.birthday,
-          signature: userBase.signature,
-          name: userBase.name,
-        };
-        if (cache === null) {
-          cache = await createUser(userBase.userId, userBaseOption, contactOption);
-        } else {
-          cache = await updateUser(cache, userBaseOption, contactOption);
-        }
-        return cache;
-      }),
-    );
+    const userIds = _.map(users, ({ userBase }) => userBase.userId);
+    const Contact = await getModel('contact');
+    const UserBase = await getModel('userBase');
+    const destroy = (t) => {
+      return [
+        UserBase.destroy({
+          where: { userId: userIds },
+          transaction: t,
+        }),
+        Contact.destroy({
+          where: { userId: userIds },
+          transaction: t,
+        }),
+      ];
+    };
+    const save = (t) => {
+      const base = [];
+      const contact = [];
+      _.forEach(users, (user) => {
+        base.push(user.userBase);
+        contact.push(Object.assign(user.contact, { userId: user.userBase.userId }));
+      });
+      return [
+        UserBase.bulkCreate(base, {
+          transaction: t,
+        }),
+        Contact.bulkCreate(contact, {
+          transaction: t,
+        }),
+      ];
+    };
+    await transaction((t) => {
+      return Promise.all(destroy(t)).then(() => Promise.all(save(t)));
+    });
   },
   async update(userId, data) {
-    console.log('TCL: update -> userId, data', userId, data);
-    let cache = await getUser(userId);
-    cache = await updateUser(cache, data.userBase, data.contact);
-    return cache.toJSON();
+    const Contact = await getModel('contact');
+    const cache = await Contact.findByPk(userId);
+    let res = null;
+    if (cache !== null) {
+      const base = await cache.getUserBase();
+      Object.assign(base, data.userBase || {});
+      Object.assign(cache, data.contact || {});
+      res = toJSON({ ...cache.toJSON(), userBase: { ...base.toJSON() } });
+      await transaction((t) => {
+        return Promise.all([
+          cache.save({
+            transaction: t,
+          }),
+          base.save({
+            transaction: t,
+          }),
+        ]);
+      });
+    }
+
+    return res;
   },
   async removeOne(userId) {
-    const { Contact } = await getUserModel();
+    const Contact = await getModel('contact');
+    const UserBase = await getModel('userBase');
+    const base = await UserBase.findByPk(userId);
     await Contact.destroy({ where: { userId } });
-    userCache.remove(userId);
+    return base && toJSON({ userBase: base.toJSON() });
   },
 };
 

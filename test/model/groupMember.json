@@ -1,0 +1,40 @@
+[
+  {
+    "groupId": "1",
+    "userId": "1",
+    "joinType": 1,
+    "version": 0
+  },
+  {
+    "groupId": "2",
+    "userId": "1",
+    "nickName": "傻子",
+    "joinType": 2,
+    "version": 0
+  },
+  {
+    "groupId": "2",
+    "userId": "2",
+    "joinType": 1,
+    "version": 0
+  },
+  {
+    "groupId": "3",
+    "userId": "4",
+    "joinType": 1,
+    "version": 0
+  },
+  {
+    "groupId": "3",
+    "userId": "2",
+    "nickName": "呆子",
+    "joinType": 1,
+    "version": 0
+  },
+  {
+    "groupId": "3",
+    "userId": "1",
+    "joinType": 1,
+    "version": 0
+  }
+]

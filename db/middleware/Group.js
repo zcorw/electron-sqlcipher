@@ -1,100 +1,235 @@
+import logger from 'electron-log';
 import _ from 'lodash';
-import { getGroup as getGroupModel } from '../model/model';
+import { getModel } from '../model/model';
 import { transaction } from '../model/database';
 import { add as addQueue } from './writeQueue';
-import cacheFactary from './cache';
 
-const cacheMax = 500; // 缓存上限
-const groupCache = cacheFactary(cacheMax);
+function toJSON(data) {
+  return {
+    groupId: data.groupId,
+    masterId: data.masterId,
+    name: data.name,
+    headImgUrl: data.headImgUrl,
+    status: data.status,
+    verifyWay: data.verifyWay,
+    totalUsers: data.totalUsers,
+    type: data.type,
+    isIngroup: data.isIngroup,
+    version: data.version,
+    pinyin: data.pinyin,
+    isUndisturb: data.groupSet.isUndisturb,
+    isHidden: data.groupSet.isHidden,
+    roleId: data.groupSet.roleId,
+  };
+}
 
-class Group {
-  constructor(groupBase, groupSet) {
-    this.instance = { groupBase, groupSet };
-  }
-
-  get id() {
-    return this.instance.groupBase.userId;
-  }
-
-  toJSON() {
-    const { groupBase, groupSet } = this.instance;
-    return {
-      ...groupBase.toJSON(),
-      ...groupSet.toJSON(),
+/**
+ * 好友API
+ * @exports
+ * @field {Function} getAllFriend 获取所有联系人
+ * @field {Function} getUserById 根据用户ID获取联系人
+ * @param {string} userId 用户id
+ * @field {Function} saveOrUpdate 保存或更新多个联系人
+ * @param {Array} users 联系人信息
+ * @field {Function} update 修改联系人信息
+ * @param {string} userId 联系人ID
+ * @param {object} data 联系人信息 {userBase, contact}
+ * @field {Function} removeOne 删除一条联系人信息
+ * @param {string} userId 联系人ID
+ */
+const self = {
+  /**
+   * 添加一组群组
+   *
+   * @param {*} list
+   * list = [
+   *  {
+   *    group_id,
+   *    head_img_url,
+   *    status,
+   *    name,
+   *    verify_name,
+   *    total_users,
+   *    type,
+   *    is_ingroup,
+   *    to_user: {
+   *      is_undisturb,
+   *      is_hidden,
+   *      role_id,
+   *    }
+   *  }
+   * ]
+   */
+  async saveOrUpdate(list) {
+    const GroupSet = await getModel('groupSet');
+    const GroupBase = await getModel('groupBase');
+    const groupIds = list.map(({ groupBase }) => groupBase.groupId);
+    console.log('TCL: saveOrUpdate -> groupIds', groupIds);
+    const destroy = (t) => {
+      return [
+        GroupSet.destroy({
+          where: { groupId: groupIds },
+          transaction: t,
+        }),
+        GroupBase.destroy({
+          where: { groupId: groupIds },
+          transaction: t,
+        }),
+      ];
     };
-  }
+    const save = (t) => {
+      const base = [];
+      const set = [];
+      _.forEach(list, (group) => {
+        base.push(group.groupBase);
+        set.push(group.groupSet);
+      });
+      return [
+        GroupBase.bulkCreate(base, {
+          transaction: t,
+        }),
+        GroupSet.bulkCreate(set, {
+          transaction: t,
+        }),
+      ];
+    };
+    try {
+      transaction((t) => {
+        return Promise.all(destroy())
+          .then(() => Promise.all(save()))
+          .catch((e) => console.log(e));
+      });
+    } catch (e) {
+      logger.error('Model Groups action saveOrUpdate error:', e);
+      throw e;
+    }
+  },
+  async getAllGroup() {
+    const GroupBase = await getModel('groupBase');
+    const GroupSet = await getModel('groupSet');
+    let result;
+    try {
+      result = await GroupBase.findAll({ include: [{ model: GroupSet }] });
+    } catch (e) {
+      logger.error('Model Groups action getAllGroup error:', e);
+      throw e;
+    }
+    return result && result.map((group) => toJSON(group.toJSON()));
+  },
+  async getGroupById(groupId) {
+    const GroupBase = await getModel('groupBase');
+    const GroupSet = await getModel('groupSet');
+    let result;
+    try {
+      result = await GroupBase.findByPk(groupId, { include: [{ model: GroupSet }] });
+    } catch (e) {
+      logger.error('Model Groups action getGroupById error:', e);
+      throw e;
+    }
+    return toJSON(result.toJSON());
+  },
+  async getGroupsById(groupIds) {
+    const GroupBase = await getModel('groupBase');
+    const GroupSet = await getModel('groupSet');
+    let result;
+    try {
+      result = await GroupBase.findAll({ where: { groupId: groupIds }, include: [{ model: GroupSet }] });
+    } catch (e) {
+      logger.error('Model Groups action getGroupsById error:', e);
+      throw e;
+    }
+    return result && result.map((group) => toJSON(group.toJSON()));
+  },
+  /**
+   * 修改群组资料
+   *
+   * @param {*} data
+   * data = {
+   *    groupId,
+   *    headImgUrl,
+   *    status,
+   *    name,
+   *    verifyName,
+   *    totalUsers,
+   *    type,
+   *    isIngroup,
+   *    isUndisturb,
+   *    isHidden,
+   *    roleId,
+   *  }
+   */
+  async updateGroup(data, groupId) {
+    const GroupBase = await getModel('groupBase');
+    const GroupSet = await getModel('groupSet');
+    let groupBase = await GroupBase.findByPk(groupId, { include: [{ model: GroupSet }] });
+    let result = null;
+    if (groupBase) {
+      const groupSet = await groupBase.getGroupSet();
+      Object.assign(groupBase, data.groupBase);
+      Object.assign(groupSet, data.groupSet);
+      result = toJSON(groupBase.toJSON());
+      try {
+        transaction((t) => {
+          return Promise.all([
+            groupBase.save({
+              transaction: t,
+            }),
+            groupSet.save({
+              transaction: t,
+            }),
+          ]);
+        });
+      } catch (e) {
+        logger.error('Model Groups action updateGroup error:', e);
+        throw e;
+      }
+    }
+    return result;
+  },
+  // 删除群组
+  async removeGroup(groupId) {
+    const GroupBase = await getModel('groupBase');
+    const GroupSet = await getModel('groupSet');
+    try {
+      transaction((t) => {
+        return Promise.all([
+          GroupBase.destroy({
+            where: { groupId },
+            transaction: t,
+          }),
+          GroupSet.destroy({
+            where: { groupId },
+            transaction: t,
+          }),
+        ]);
+      });
+    } catch (e) {
+      logger.error('Model Groups action removeGroup error:', e);
+      throw e;
+    }
+  },
+  // 被踢出群
+  async kitoutGroup(groupId) {
+    const GroupBase = await getModel('groupBase');
+    try {
+      await GroupBase.update({ isIngroup: 0 }, { where: { groupId } });
+    } catch (e) {
+      logger.error('Model Groups action kitoutGroup error:', e);
+      throw e;
+    }
+  },
+  async getMaster(groupId) {
+    const GroupSet = await getModel('groupSet');
+    let result;
+    try {
+      const group = await GroupSet.findByPk(groupId);
+      result = group ? group.roleId === 10 : false;
+    } catch (e) {
+      logger.error('Model Groups action kitoutGroup error:', e);
+      throw e;
+    }
+    return result;
+  },
+};
 
-  updateGroupBase(data) {
-    const { groupBase } = this.instance;
-    _.forEach(data, (v, k) => {
-      groupBase[k] = v;
-    });
-    return groupBase;
-  }
-
-  updateGroupSet(data) {
-    const { groupSet } = this.instance;
-    _.forEach(data, (v, k) => {
-      groupSet[k] = v;
-    });
-    return groupSet;
-  }
-}
-
-/**
- * 从缓存或数据库获取用户数据
- * @param {*} userId 用户id
- */
-async function getGroup(groupId) {
-  if (groupCache.has(groupId)) {
-    return groupCache.get(groupId);
-  }
-  const { Contact } = await getGroupModel();
-  const contact = await Contact.findByPk(groupId);
-  if (contact === null) {
-    return null;
-  }
-  const base = await contact.getUserBase();
-  const group = new Group(base, contact);
-  setTimeout(() => groupCache.add(groupId, group));
-  return group;
-}
-
-/**
- * 创建用户数据并写入数据库
- * @param {object} data
- * @field {object} userBase 用户基础信息
- * @field {object} contact 联系人信息
- */
-async function createGroup(data) {
-  const { GroupBase, GroupSet } = await getGroupModel();
-  const { groupBase, groupSet } = data;
-
-  const groupSetInstances = GroupSet.build({
-    groupId: groupBase.groupId,
-    isUndisturb: groupSet.isUndisturb,
-    isHidden: groupSet.isHidden,
-    roleId: groupSet.roleId,
-  });
-  const groupBaseInstances = GroupBase.build({
-    groupId: groupBase.groupId,
-    masterId: groupBase.masterId,
-    name: groupBase.name,
-    headImgUrl: groupBase.headImgUrl,
-    status: groupBase.status,
-    verifyWay: groupBase.verifyWay,
-    totalUsers: groupBase.totalUsers,
-    type: groupBase.type,
-    isIngroup: groupBase.isIngroup,
-    version: groupBase.version,
-  });
-
-  const group = new Group(groupBaseInstances, groupSetInstances);
-  groupCache.add(groupBase.userId, group);
-  addQueue(() => {
-    return transaction((t) => {
-      return Promise.all([groupBaseInstances.save({ transaction: t }), groupSetInstances.save({ transaction: t })]);
-    });
-  });
-  return group;
-}
+export default self;

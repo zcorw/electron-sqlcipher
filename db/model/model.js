@@ -1,39 +1,38 @@
 import { Model } from 'sequelize';
-import { get as getDatabase, close } from './database';
-import * as config from './config';
+import _ from 'lodash';
+import { get as getDatabase, close as closeDatabase } from './database';
+import * as configs from './config';
 
 let models = {};
 function createModel(modelName, columns, database, options) {
-  if (models[modelName]) {
-    return Promise.resolve(models[modelName]);
-  }
   class M extends Model {}
   M.init(columns, { sequelize: database, modelName, ...options });
   models[modelName] = M;
-  return M.sync().then(() => M);
+  return M;
 }
 
-export function reset() {
+export function start() {
+  _.forEach(configs, (config, key) => {
+    if (key !== 'groupRecord') {
+      createModel(key, config, getDatabase());
+    }
+  });
+  const { contact, userBase, groupMember, groupBase, groupSet } = models;
+  contact.belongsTo(userBase, { foreignKey: 'userId', constraints: false });
+  groupMember.belongsTo(userBase, { foreignKey: 'userId', constraints: false });
+  groupMember.belongsTo(groupBase, { foreignKey: 'groupId', constraints: false });
+  groupBase.hasOne(groupSet, { foreignKey: 'groupId', constraints: false });
+}
+
+export function close() {
   models = {};
-  close();
+  closeDatabase();
 }
 
-export async function getContact() {
-  if (models.userBase && models.contact) {
-    return { UserBase: models.userBase, Contact: models.contact };
-  }
-  const UserBase = await createModel('userBase', config.userBase, getDatabase());
-  const Contact = await createModel('contact', config.contact, getDatabase());
-  Contact.UserBase = Contact.belongsTo(UserBase, { foreignKey: 'userId', constraints: false });
-  return { UserBase, Contact };
-}
-
-export async function getGroup() {
-  if (models.groupBase && models.groupSet) {
-    return { GroupBase: models.groupBase, GroupSet: models.groupSet };
-  }
-  const GroupBase = await createModel('groupBase', config.groupBase, getDatabase());
-  const GroupSet = await createModel('groupSet', config.groupSet, getDatabase());
-  // GroupSet.GroupBase = GroupSet.belongsTo(GroupBase, { as: 'Base', foreignKey: 'groupId', constraints: false });
-  return { GroupBase, GroupSet };
+export function getModel(modelName, options) {
+  const model =
+    modelName !== 'groupRecord'
+      ? models[modelName]
+      : createModel(`${modelName}_${options.groupId}`, configs[modelName], getDatabase());
+  return model.sync();
 }

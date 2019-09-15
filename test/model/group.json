@@ -1,0 +1,38 @@
+[
+  {
+    "groupId": "10032b440821f0da7b0bbc9047f1a834720",
+    "userId": "10046",
+    "status": "2",
+    "headImgUrl": "http://ozc1uwa63.bkt.clouddn.com/FgMcQYd1momYzaVEYe5wl7gEBBdy",
+    "name": "im官方群",
+    "verifyWay": "1",
+    "totalUsers": "54",
+    "type": "1",
+    "updateVersion": "1",
+    "isIngroup": "1"
+  },
+  {
+    "groupId": "69C982B961BD4CFB8A8A42B32B580E06",
+    "userId": "15256",
+    "status": "2",
+    "headImgUrl": "",
+    "name": "测试过渡期",
+    "verifyWay": "1",
+    "totalUsers": "4",
+    "type": "1",
+    "updateVersion": "1566978686945",
+    "isIngroup": "1"
+  },
+  {
+    "groupId": "4c28ccb14fbd470cad2c9e92c998d08b",
+    "userId": "10070",
+    "status": "2",
+    "headImgUrl": "http://header.kimisecret.com/FuULeW8HYc1Uavmk2Q6IBeJ9Bgn4",
+    "name": "IM生活群",
+    "verifyWay": "2",
+    "totalUsers": "55",
+    "type": "1",
+    "updateVersion": "1556100316147",
+    "isIngroup": "1"
+  }
+]
